@@ -1,1 +1,399 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tiny Tanks Arena - Live Multiplayer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b0f19;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas {
+            display: block;
+            background: #0f172a;
+        }
+        .joystick-container {
+            position: absolute;
+            bottom: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            touch-action: none;
+            display: none;
+            z-index: 45;
+            backdrop-filter: blur(4px);
+        }
+        #left-joystick { left: 40px; }
+        #right-joystick { right: 40px; }
+        .joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            position: absolute;
+            left: 35px;
+            top: 35px;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            border: 2px solid #ffffff;
+        }
+    </style>
+</head>
+<body class="relative h-screen w-screen overflow-hidden text-white">
 
+    <div id="lobby-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 p-4 transition-all duration-300">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl text-center space-y-6">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 animate-pulse tracking-wider">
+                TINY TANKS ONLINE
+            </h1>
+            <p class="text-slate-400 text-sm">Real-time multiplayer tank arena! Bouncing physics, dynamic damage, and real battles!</p>
+
+            <div id="connection-status" class="text-xs bg-slate-950/60 py-2 rounded border border-slate-800 text-amber-400">
+                <i class="fa-solid fa-circle-notch animate-spin mr-2"></i> Server se jud rahe hain...
+            </div>
+
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-slate-300 text-sm font-bold mb-1">Apna Naam Likhein:</label>
+                    <input type="text" id="player-name" value="Khatarnak_Khiladi" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 text-sm font-bold mb-1">Tank Ka Rang Chunna:</label>
+                    <div class="flex gap-3 justify-center py-2" id="color-picker">
+                        <button class="w-10 h-10 rounded-full border-4 border-white bg-emerald-500 focus:outline-none transition" data-color="#10b981"></button>
+                        <button class="w-10 h-10 rounded-full border-4 border-transparent bg-amber-500 focus:outline-none transition" data-color="#f59e0b"></button>
+                        <button class="w-10 h-10 rounded-full border-4 border-transparent bg-rose-500 focus:outline-none transition" data-color="#f43f5e"></button>
+                        <button class="w-10 h-10 rounded-full border-4 border-transparent bg-indigo-500 focus:outline-none transition" data-color="#6366f1"></button>
+                        <button class="w-10 h-10 rounded-full border-4 border-transparent bg-purple-500 focus:outline-none transition" data-color="#a855f7"></button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-btn" disabled class="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all text-lg opacity-50 cursor-not-allowed">
+                Server Se Judne Ka Intezar Karein
+            </button>
+        </div>
+    </div>
+
+    <div id="game-hud" class="absolute inset-0 pointer-events-none hidden z-40 flex flex-col justify-between p-4">
+        <div class="flex justify-between items-start w-full">
+            <div class="bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-xl flex flex-col gap-1 pointer-events-auto shadow-lg min-w-[200px]">
+                <div class="flex items-center justify-between">
+                    <span id="hud-player-name" class="text-xs text-emerald-400 font-bold">Player</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-4 overflow-hidden relative border border-slate-600">
+                    <div id="hud-health-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-100" style="width: 100%;"></div>
+                    <span id="hud-health-text" class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">100/100</span>
+                </div>
+                <div class="flex justify-between items-center text-xs mt-1">
+                    <span>Kills: <strong id="hud-score" class="text-amber-400">0</strong></span>
+                    <span id="hud-weapon" class="text-[10px] bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300">Asli Goli</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-xl pointer-events-auto shadow-lg w-52">
+                <h3 class="text-xs font-bold text-center border-b border-slate-700 pb-1 mb-2 text-amber-400 tracking-wider">
+                    <i class="fa-solid fa-users mr-1"></i> LIVE SCOREBOARD
+                </h3>
+                <ol id="leaderboard-list" class="text-xs space-y-1 font-mono">
+                    </ol>
+            </div>
+        </div>
+
+        <div id="toast-container" class="absolute top-1/4 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 items-center pointer-events-none"></div>
+
+        <div class="w-full flex justify-between items-end">
+            <div class="pointer-events-auto">
+                <button id="emoji-menu-btn" class="bg-slate-800/90 hover:bg-slate-700 border border-slate-700 w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all">
+                    <i class="fa-regular fa-face-laugh-beam text-xl text-yellow-400"></i>
+                </button>
+                <div id="emoji-picker" class="hidden absolute bottom-20 left-4 bg-slate-900 border border-slate-700 p-2 rounded-xl flex gap-2 shadow-2xl">
+                    <button class="emoji-btn hover:scale-125 transition text-2xl" data-emoji="😎">😎</button>
+                    <button class="emoji-btn hover:scale-125 transition text-2xl" data-emoji="😂">😂</button>
+                    <button class="emoji-btn hover:scale-125 transition text-2xl" data-emoji="😠">😠</button>
+                    <button class="emoji-btn hover:scale-125 transition text-2xl" data-emoji="👑">👑</button>
+                    <button class="emoji-btn hover:scale-125 transition text-2xl" data-emoji="💀">💀</button>
+                </div>
+            </div>
+            <div class="bg-slate-900/80 px-3 py-1 rounded-full text-xs text-slate-400 border border-slate-700">
+                Lobby ID: <span id="hud-lobby-id" class="text-white font-mono">Connecting...</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameover-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 p-4 hidden transition-all duration-300">
+        <div class="max-w-sm w-full bg-slate-900 border border-rose-950 rounded-2xl p-6 shadow-2xl text-center space-y-6">
+            <h2 class="text-3xl font-black text-rose-500 tracking-wider">GAME OVER!</h2>
+            <div class="p-4 bg-slate-950/50 rounded-lg border border-slate-800 space-y-2">
+                <p class="text-slate-400 text-sm">Aapka Safar:</p>
+                <p class="text-xl">Final Kills: <strong id="gameover-score" class="text-amber-400">0</strong></p>
+                <p class="text-sm text-slate-500">Maut Ka Karan: <span id="gameover-cause" class="text-rose-400 font-semibold">Unknown</span></p>
+            </div>
+            <button id="respawn-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all text-lg">
+                Dobara Kheleid (Respawn) <i class="fa-solid fa-rotate-left ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="left-joystick" class="joystick-container">
+        <div class="joystick-knob"></div>
+    </div>
+    <div id="right-joystick" class="joystick-container">
+        <div class="joystick-knob"></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration integrated with your exact credentials ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA0j8fKVoQy30kscZGJCvdmXTH3sOn4zJ8",
+            authDomain: "tink-tank.firebaseapp.com",
+            projectId: "tink-tank",
+            storageBucket: "tink-tank.firebasestorage.app",
+            messagingSenderId: "93229888975",
+            appId: "1:93229888975:web:5aff0679f9e13a90dc0eba",
+            measurementId: "G-2FDHLMG809"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'tinytank-multiplayer-v1';
+
+        let user = null;
+        let userId = '';
+
+        // Anonymous Login for Players
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+        initAuth();
+
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                user = u;
+                userId = u.uid;
+                document.getElementById('connection-status').className = "text-xs bg-emerald-950/60 py-2 rounded border border-emerald-800 text-emerald-400";
+                document.getElementById('connection-status').innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i> Server se jud gaye hain!';
+                const startBtn = document.getElementById('start-btn');
+                startBtn.disabled = false;
+                startBtn.className = "w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all text-lg cursor-pointer";
+                startBtn.innerText = "Khel Shuru/Respawn";
+            }
+        });
+
+        // --- Game Setup & Global States ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const gameHud = document.getElementById('game-hud');
+        const gameOverScreen = document.getElementById('gameover-screen');
+        
+        let gameState = 'lobby'; 
+        let playerColor = '#10b981'; 
+        let playerName = 'Khatarnak_Khiladi';
+
+        let mapWidth = 2000;
+        let mapHeight = 2000;
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (isTouchDevice) {
+            document.getElementById('left-joystick').style.display = 'block';
+            document.getElementById('right-joystick').style.display = 'block';
+        }
+
+        // Controls
+        const keys = {};
+        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseClicked = false;
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        window.addEventListener('mousedown', () => { mouseClicked = true; });
+        window.addEventListener('mouseup', () => { mouseClicked = false; });
+
+        // Joysticks Setup
+        const leftJoystick = {
+            container: document.getElementById('left-joystick'),
+            knob: document.getElementById('left-joystick').querySelector('.joystick-knob'),
+            active: false,
+            startX: 0,
+            startY: 0,
+            inputX: 0,
+            inputY: 0
+        };
+
+        const rightJoystick = {
+            container: document.getElementById('right-joystick'),
+            knob: document.getElementById('right-joystick').querySelector('.joystick-knob'),
+            active: false,
+            startX: 0,
+            startY: 0,
+            inputX: 0,
+            inputY: 0
+        };
+
+        function setupJoystick(joystickObj, container) {
+            container.addEventListener('touchstart', (e) => {
+                const rect = container.getBoundingClientRect();
+                joystickObj.active = true;
+                joystickObj.startX = rect.left + rect.width / 2;
+                joystickObj.startY = rect.top + rect.height / 2;
+                handleTouchMove(e);
+            }, { passive: true });
+
+            container.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+            container.addEventListener('touchend', () => {
+                joystickObj.active = false;
+                joystickObj.inputX = 0;
+                joystickObj.inputY = 0;
+                joystickObj.knob.style.transform = `translate(0px, 0px)`;
+            }, { passive: true });
+
+            function handleTouchMove(e) {
+                if (!joystickObj.active) return;
+                const touch = Array.from(e.touches).find(t => {
+                    const rect = container.getBoundingClientRect();
+                    return t.clientX >= rect.left && t.clientX <= rect.right &&
+                           t.clientY >= rect.top && t.clientY <= rect.bottom;
+                }) || e.touches[0];
+
+                if (!touch) return;
+
+                let dx = touch.clientX - joystickObj.startX;
+                let dy = touch.clientY - joystickObj.startY;
+                const dist = Math.hypot(dx, dy);
+                const maxDist = 40;
+
+                if (dist > maxDist) {
+                    dx = (dx / dist) * maxDist;
+                    dy = (dy / dist) * maxDist;
+                }
+
+                joystickObj.knob.style.transform = `translate(${dx}px, ${dy}px)`;
+                joystickObj.inputX = dx / maxDist;
+                joystickObj.inputY = dy / maxDist;
+            }
+        }
+
+        setupJoystick(leftJoystick, leftJoystick.container);
+        setupJoystick(rightJoystick, rightJoystick.container);
+
+        const colorPickerBtns = document.querySelectorAll('#color-picker button');
+        colorPickerBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                colorPickerBtns.forEach(b => b.classList.remove('border-white'));
+                colorPickerBtns.forEach(b => b.classList.add('border-transparent'));
+                btn.classList.remove('border-transparent');
+                btn.classList.add('border-white');
+                playerColor = btn.getAttribute('data-color');
+            });
+        });
+
+        // --- Synthesized SFX ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+        function playSound(type) {
+            try {
+                if (!audioCtx) audioCtx = new AudioCtx();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'shoot') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } else if (type === 'explosion') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.4);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.4);
+                } else if (type === 'powerup') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                } else if (type === 'hit') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.08);
+                }
+            } catch (err) {}
+        }
+
+        // --- Map Layout & Physics ---
+        let obstacles = [];
+        let crates = []; 
+        let treadMarks = []; 
+
+        function createMap() {
+            obstacles = [];
+            crates = [];
+            treadMarks = [];
+
+            // Outer Boundaries
+            obstacles.push({ x: 0, y: 0, w: mapWidth, h: 40 }); 
+            obstacles.push({ x: 0, y: mapHeight - 40, w: mapWidth, h: 40 }); 
+            obstacles.push({ x: 0, y: 40, w: 40, h: mapHeight - 80 }); 
+            obstacles.push({ x: mapWidth - 40, y: 40, w: 40, h: mapHeight - 80 }); 
+
+            // Inner Walls (Maze Pattern)
+            const mazeBlocks = [
+                { x: 300, y: 300, w: 150, h: 60 },
+                { x: 300, y: 360, w: 60, h: 200 },
+                { x: 600, y: 200, w: 200, h: 60 },
+                { x: 200, y: 700, w: 300, h: 60 },
+                { x: 1100, y: 300, w: 300, h: 60 },
+                { x: 1500, y: 200, w: 60, h: 350 }
